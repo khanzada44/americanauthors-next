@@ -1,0 +1,66 @@
+Options -Indexes -MultiViews
+DirectoryIndex index.html
+
+RewriteEngine On
+
+# PHP form backend internals are never public (api/ stays public for the forms).
+RewriteRule ^(?:config|server|vendor)(?:/|$) - [F,L,NC]
+RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,L,NC]
+
+# Force https://americanauthors.org (no www). Localhost is left alone.
+RewriteCond %{HTTP_HOST} ^(?:www\.)?americanauthors\.org(?::\d+)?$ [NC]
+RewriteCond %{HTTPS} !=on [OR]
+RewriteCond %{HTTP_HOST} ^www\.americanauthors\.org(?::\d+)?$ [NC]
+RewriteRule ^ https://americanauthors.org%{REQUEST_URI} [R=301,L]
+
+# Old PHP URLs (about.php, index.php) and .html URLs -> clean routes.
+RewriteRule ^index\.(?:php|html)$ / [R=301,L]
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule ^([a-z0-9-]+)\.php$ /$1 [R=301,L]
+RewriteCond %{THE_REQUEST} \s/+([a-z0-9-]+)\.html[\s?] [NC]
+RewriteRule ^ /%1 [R=301,L]
+
+# No trailing slash on pages.
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-z0-9-]+)/$ /$1 [R=301,L]
+
+# Serve /about from about.html (Next.js static export).
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^([a-z0-9-]+)$ $1.html [L]
+
+ErrorDocument 404 /404.html
+
+<FilesMatch "(?i)(^composer\.(json|lock)$|\.(?:bak|old|orig|save|sql|ini|log|env|zip|tar|gz|md)$|~$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header unset X-Powered-By
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    # Keep search engines out until site.allowIndexing is switched on.
+    Header always set X-Robots-Tag "noindex, nofollow"
+</IfModule>
+
+<IfModule php_module>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
